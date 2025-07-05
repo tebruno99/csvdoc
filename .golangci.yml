@@ -1,0 +1,102 @@
+# https://github.com/golangci/golangci-lint/blob/HEAD/.golangci.reference.yml
+version: "2"
+
+issues:
+  max-same-issues: 10
+
+formatters:
+  enable:
+    - goimports
+    - gofmt
+    - gofumpt
+
+  settings:
+
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - asciicheck
+    - bidichk
+    - copyloopvar
+    - dupl
+    - durationcheck
+    - errcheck
+    - errname
+    - errorlint
+    - exptostd
+    - mnd
+    - gosec
+    - godot
+    - nonamedreturns
+    - nosprintfhostport
+    - gocheckcompilerdirectives
+    - perfsprint
+    - gochecknoglobals
+    - gochecknoinits
+    - nakedret
+    - gochecksumtype
+    - goconst
+    - musttag
+    - iface
+    - makezero
+    - mirror
+    - nestif
+    - nolintlint
+    - predeclared
+    - reassign
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+    - decorder
+    - ireturn
+    - prealloc
+    - tagalign
+
+
+  settings:
+    nolintlint:
+      allow-unused: false
+      allow-no-explanation: [ ]
+      require-explanation: true
+      require-specific: true
+
+    errcheck:
+      check-type-assertions: true
+
+    govet:
+      enable-all: true
+      settings:
+        shadow:
+          strict: true
+
+    mnd:
+      ignored-functions:
+        - args.Error
+        - flag.Arg
+        - flag.Duration.*
+        - flag.Float.*
+        - flag.Int.*
+        - flag.Uint.*
+        - os.Chmod
+        - os.Mkdir.*
+        - os.OpenFile
+        - os.WriteFile
+
+    nakedret:
+      max-func-lines: 0
+
+    rowserrcheck:
+      packages:
+        - github.com/jmoiron/sqlx
