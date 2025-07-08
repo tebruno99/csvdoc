@@ -23,6 +23,22 @@ type FileReader[T any] struct {
 	fp                string
 }
 
+func (f *FileReader[T]) Close() error {
+	return f.f.Close()
+}
+
+func (f *FileReader[T]) Reset() error {
+	_, err := f.f.Seek(0, 0)
+	if err != nil {
+		return err
+	}
+	_, err = f.cr.Read()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // NewFileReader creates a new CSV FileReader for the specified file path. This reader assumes the csv file has a header
 // and all the header values match the struct tags of type T.
 func NewFileReader[T any](fp string) (*FileReader[T], error) {
