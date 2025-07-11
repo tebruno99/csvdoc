@@ -23,16 +23,18 @@ type FileReader[T any] struct {
 	fp                string
 }
 
-func (f *FileReader[T]) Close() error {
-	return f.f.Close()
+// Close the underlaying file. Close should be called when done reading.
+func (fr *FileReader[T]) Close() error {
+	return fr.f.Close()
 }
 
-func (f *FileReader[T]) Reset() error {
-	_, err := f.f.Seek(0, 0)
+// Reset resets the csv reader back to the row after the header (2nd row).
+func (fr *FileReader[T]) Reset() error {
+	_, err := fr.f.Seek(0, 0)
 	if err != nil {
 		return err
 	}
-	_, err = f.cr.Read()
+	_, err = fr.cr.Read()
 	if err != nil {
 		return err
 	}
@@ -76,7 +78,7 @@ func NewFileReader[T any](fp string) (*FileReader[T], error) {
 		return nil, err
 	}
 
-	cd := &FileReader[T]{
+	fileReader := &FileReader[T]{
 		fp:                fp,
 		f:                 f,
 		reflectIndexes:    fieldIndexes,
@@ -87,14 +89,14 @@ func NewFileReader[T any](fp string) (*FileReader[T], error) {
 		customConverters:  make(map[string]Conversion),
 	}
 
-	return cd, nil
+	return fileReader, nil
 }
 
 // Read uses csv.Reader to obtain the next line as a []string and then builds a struct of type *T from the []string. Returns EOF and closes the open file automatically.
-func (c *FileReader[T]) Read() (*T, error) {
-	line, err := c.cr.Read()
+func (fr *FileReader[T]) Read() (*T, error) {
+	line, err := fr.cr.Read()
 	if err != nil {
-		cerr := c.f.Close()
+		cerr := fr.f.Close()
 		if cerr != nil {
 			log.Println("Error closeing file: ", cerr)
 		}
@@ -103,12 +105,12 @@ func (c *FileReader[T]) Read() (*T, error) {
 	t := new(T)
 	elemVal := reflect.ValueOf(t).Elem()
 	for i, v := range line {
-		hrName := c.indexHeader[i]
-		tagFieldIndex := c.reflectIndexes[hrName]
+		hrName := fr.indexHeader[i]
+		tagFieldIndex := fr.reflectIndexes[hrName]
 		f := elemVal.Field(tagFieldIndex)
 		tp := f.Type()
 
-		if cv, ok := c.customConverters[hrName]; ok {
+		if cv, ok := fr.customConverters[hrName]; ok {
 			err = cv(v, &f)
 			if err != nil {
 				return nil, err
@@ -117,7 +119,7 @@ func (c *FileReader[T]) Read() (*T, error) {
 			continue
 		}
 
-		if cv, ok := c.defaultConverters[tp]; ok {
+		if cv, ok := fr.defaultConverters[tp]; ok {
 			err = cv(v, &f)
 			if err != nil {
 				return nil, err
@@ -133,21 +135,21 @@ func (c *FileReader[T]) Read() (*T, error) {
 }
 
 // AddConvertor adds a customer Conversion func to handle a specific CSV header/struct tag.
-func (c *FileReader[T]) AddConvertor(header string, handler Conversion) error {
-	if _, ok := c.headerIndex[header]; !ok {
+func (fr *FileReader[T]) AddConvertor(header string, handler Conversion) error {
+	if _, ok := fr.headerIndex[header]; !ok {
 		return errors.New("header not found")
 	}
 
-	c.customConverters[header] = handler
+	fr.customConverters[header] = handler
 	return nil
 }
 
 // RemoveConvertor removes a customer Conversion func for a specific CSV header/struct tag.
-func (c *FileReader[T]) RemoveConvertor(header string) error {
-	if _, ok := c.headerIndex[header]; !ok {
+func (fr *FileReader[T]) RemoveConvertor(header string) error {
+	if _, ok := fr.headerIndex[header]; !ok {
 		return errors.New("header not found")
 	}
 
-	delete(c.customConverters, header)
+	delete(fr.customConverters, header)
 	return nil
 }
