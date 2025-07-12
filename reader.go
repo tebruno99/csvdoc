@@ -9,15 +9,6 @@ import (
 	"time"
 )
 
-var (
-	ErrStructTagNotInCSV        = errors.New("struct tag not in csv")
-	ErrDuplicateHeaderInCSV     = errors.New("duplicate header in csv")
-	ErrStructTagDuplicate       = errors.New("struct tag duplicate")
-	ErrConverterNotFoundForType = errors.New("converter not found for type")
-	ErrNotFoundHeaderInCSV      = errors.New("header not found in csv")
-	ErrTypeOverflow             = errors.New("conversion type overlow")
-)
-
 // Conversion is a function type that is used to provide converters from csv string values to a specific Go type.
 // default Conversion functions are provided for Reader and custom Conversion functions may be added to a Reader to
 // override the defaults of a specific column identified by the header name.
