@@ -108,9 +108,6 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 			if err != nil {
 				return err
 			}
-			if field.OverflowFloat(val) {
-				return ErrTypeOverflow
-			}
 			field.Set(reflect.ValueOf(sql.NullFloat64{Float64: val, Valid: true}))
 		}
 
@@ -121,7 +118,7 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 		return nil
 	})
 	timeConversion := Conversion(func(s string, field *reflect.Value) error {
-		formats := []string{time.DateTime, time.DateOnly, time.RFC3339, time.RFC3339Nano, "01/02/2006 15:04:05 AM", "1/2/2006 15:04:05 AM"}
+		formats := []string{time.DateTime, time.DateOnly, time.RFC3339, time.RFC3339Nano, "01/02/2006 15:04:05 PM", "1/2/2006 15:04:05 PM"}
 		if s != "" {
 			for _, format := range formats {
 				val, err := time.Parse(format, s)
@@ -134,7 +131,7 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 		return errors.New("cannot convert string to time")
 	})
 	sqlNullTimeConversion := Conversion(func(s string, field *reflect.Value) error {
-		formats := []string{time.DateTime, time.DateOnly, time.RFC3339, time.RFC3339Nano, "01/02/2006 15:04:05 AM", "1/2/2006 15:04:05 AM"}
+		formats := []string{time.DateTime, time.DateOnly, time.RFC3339, time.RFC3339Nano, "01/02/2006 15:04:05 PM", "1/2/2006 15:04:05 PM"}
 		if s != "" {
 			for _, format := range formats {
 				val, err := time.Parse(format, s)
