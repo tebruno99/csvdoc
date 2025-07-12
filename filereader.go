@@ -2,8 +2,6 @@ package csvdoc
 
 import (
 	"encoding/csv"
-	"errors"
-	"fmt"
 	"log"
 	"os"
 	"reflect"
@@ -65,10 +63,6 @@ func NewFileReader[T any](fp string) (*FileReader[T], error) {
 		return nil, err
 	}
 
-	// Check that the column count matches the count of 'csv' tagged struct items
-	if len(headerLine) != len(fieldIndexes) {
-		return nil, errors.New("csv header and struct tag count mismatch")
-	}
 	nameIndex, indexName, err := buildHeaderNameIndexCache(headerLine, fieldIndexes)
 	if err != nil {
 		cerr := f.Close()
@@ -105,6 +99,9 @@ func (fr *FileReader[T]) Read() (*T, error) {
 	t := new(T)
 	elemVal := reflect.ValueOf(t).Elem()
 	for i, v := range line {
+		if _, ok := fr.indexHeader[i]; !ok {
+			continue
+		}
 		hrName := fr.indexHeader[i]
 		tagFieldIndex := fr.reflectIndexes[hrName]
 		f := elemVal.Field(tagFieldIndex)
@@ -128,7 +125,7 @@ func (fr *FileReader[T]) Read() (*T, error) {
 			continue
 		}
 
-		return nil, fmt.Errorf("%s: %w", tp.Kind(), errors.New("field type not found in converter"))
+		return nil, ErrConverterNotFoundForType
 	}
 
 	return t, nil
@@ -137,7 +134,7 @@ func (fr *FileReader[T]) Read() (*T, error) {
 // AddConvertor adds a customer Conversion func to handle a specific CSV header/struct tag.
 func (fr *FileReader[T]) AddConvertor(header string, handler Conversion) error {
 	if _, ok := fr.headerIndex[header]; !ok {
-		return errors.New("header not found")
+		return ErrNotFoundHeaderInCSV
 	}
 
 	fr.customConverters[header] = handler
@@ -146,10 +143,6 @@ func (fr *FileReader[T]) AddConvertor(header string, handler Conversion) error {
 
 // RemoveConvertor removes a customer Conversion func for a specific CSV header/struct tag.
 func (fr *FileReader[T]) RemoveConvertor(header string) error {
-	if _, ok := fr.headerIndex[header]; !ok {
-		return errors.New("header not found")
-	}
-
 	delete(fr.customConverters, header)
 	return nil
 }

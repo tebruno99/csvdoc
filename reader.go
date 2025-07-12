@@ -5,7 +5,17 @@ import (
 	"errors"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
+)
+
+var (
+	ErrStructTagNotInCSV        = errors.New("struct tag not in csv")
+	ErrDuplicateHeaderInCSV     = errors.New("duplicate header in csv")
+	ErrStructTagDuplicate       = errors.New("struct tag duplicate")
+	ErrConverterNotFoundForType = errors.New("converter not found for type")
+	ErrNotFoundHeaderInCSV      = errors.New("header not found in csv")
+	ErrTypeOverflow             = errors.New("conversion type overlow")
 )
 
 // Conversion is a function type that is used to provide converters from csv string values to a specific Go type.
@@ -81,7 +91,7 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 				return err
 			}
 			if field.OverflowUint(val) {
-				return errors.New("overflow uint convert")
+				return ErrTypeOverflow
 			}
 			field.SetUint(val)
 		}
@@ -94,7 +104,7 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 				return err
 			}
 			if field.OverflowFloat(val) {
-				return errors.New("overflow float64 convert")
+				return ErrTypeOverflow
 			}
 			field.SetFloat(val)
 		}
@@ -108,7 +118,7 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 				return err
 			}
 			if field.OverflowFloat(val) {
-				return errors.New("overflow convert")
+				return ErrTypeOverflow
 			}
 			field.Set(reflect.ValueOf(sql.NullFloat64{Float64: val, Valid: true}))
 		}
@@ -120,7 +130,7 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 		return nil
 	})
 	timeConversion := Conversion(func(s string, field *reflect.Value) error {
-		formats := []string{time.DateTime, time.DateOnly, time.RFC3339, time.RFC3339Nano, "01/02/2006 15:04:05 AM"}
+		formats := []string{time.DateTime, time.DateOnly, time.RFC3339, time.RFC3339Nano, "01/02/2006 15:04:05 AM", "1/2/2006 15:04:05 AM"}
 		if s != "" {
 			for _, format := range formats {
 				val, err := time.Parse(format, s)
@@ -133,7 +143,7 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 		return errors.New("cannot convert string to time")
 	})
 	sqlNullTimeConversion := Conversion(func(s string, field *reflect.Value) error {
-		formats := []string{time.DateTime, time.DateOnly, time.RFC3339, time.RFC3339Nano, "01/02/2006 15:04:05 AM"}
+		formats := []string{time.DateTime, time.DateOnly, time.RFC3339, time.RFC3339Nano, "01/02/2006 15:04:05 AM", "1/2/2006 15:04:05 AM"}
 		if s != "" {
 			for _, format := range formats {
 				val, err := time.Parse(format, s)
@@ -142,9 +152,10 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 					return nil
 				}
 			}
+			return errors.New("cannot convert string to time")
 		}
 
-		return errors.New("cannot convert string to time")
+		return nil
 	})
 	sqlNullStringConversion := Conversion(func(a string, field *reflect.Value) error {
 		if a != "" {
@@ -189,11 +200,12 @@ func buildReflectTagIndexCache[T any]() (map[string]int, error) {
 		csvTag := ft.Field(i).Tag
 		if _, ok := csvTag.Lookup("csv"); ok {
 			tag := csvTag.Get("csv")
-			if _, tok := fieldIndexes[tag]; tok {
-				return nil, errors.New("duplicate field tag")
+			readTag := strings.Split(tag, ",")
+			if _, tok := fieldIndexes[readTag[0]]; tok {
+				return nil, ErrStructTagDuplicate
 			}
-			if tag != "" && tag != "-" {
-				fieldIndexes[csvTag.Get("csv")] = i
+			if readTag[0] != "" && readTag[0] != "-" {
+				fieldIndexes[readTag[0]] = i
 			}
 		}
 	}
@@ -205,19 +217,25 @@ func buildReflectTagIndexCache[T any]() (map[string]int, error) {
 // The first map links column names to their index positions, the second maps indices back to names.
 // It validates that all headers exist in struct tags and checks for duplicate headers.
 func buildHeaderNameIndexCache(headerLine []string, tFieldsIndexes map[string]int) (map[string]int, map[int]string, error) {
-	nameIndex := make(map[string]int, len(headerLine))
-	indexName := make(map[int]string, len(headerLine))
+	nameIndex := make(map[string]int, len(tFieldsIndexes))
+	indexName := make(map[int]string, len(tFieldsIndexes))
 
-	// Validate all headers are in the struct tags
+	// Collect indexes for headers in struct tags.
 	for i, col := range headerLine {
-		if _, ok := tFieldsIndexes[col]; !ok {
-			return nil, nil, errors.New("header not found in struct")
-		}
 		if _, ok := nameIndex[col]; ok {
-			return nil, nil, errors.New("duplicate csv header")
+			return nil, nil, ErrDuplicateHeaderInCSV
 		}
-		nameIndex[col] = i
-		indexName[i] = col
+		if _, ok := tFieldsIndexes[col]; ok {
+			nameIndex[col] = i
+			indexName[i] = col
+		}
+	}
+
+	// check that all struct tags were in the header.
+	for k := range tFieldsIndexes {
+		if _, ok := nameIndex[k]; !ok {
+			return nil, nil, ErrStructTagNotInCSV
+		}
 	}
 
 	return nameIndex, indexName, nil
