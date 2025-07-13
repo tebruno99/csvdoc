@@ -42,7 +42,7 @@ func (fr *FileReader[T]) Reset() error {
 // NewFileReader creates a new CSV FileReader for the specified file path. This reader assumes the csv file has a header
 // and all the header values match the struct tags of type T.
 func NewFileReader[T any](fp string) (*FileReader[T], error) {
-	fieldIndexes, err := buildReflectTagIndexCache[T]()
+	fieldIndexes, err := buildReflectTagIndexCache[T](false)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func NewFileReader[T any](fp string) (*FileReader[T], error) {
 		return nil, err
 	}
 
-	nameIndex, indexName, err := buildHeaderNameIndexCache(headerLine, fieldIndexes)
+	nameIndex, indexName, err := buildReadHeaderNameIndexCache(headerLine, fieldIndexes)
 	if err != nil {
 		cerr := f.Close()
 		if cerr != nil {
@@ -79,7 +79,7 @@ func NewFileReader[T any](fp string) (*FileReader[T], error) {
 		cr:                cr,
 		headerIndex:       nameIndex,
 		indexHeader:       indexName,
-		defaultConverters: buildDefaultConverts(),
+		defaultConverters: buildReadDefaultConverters(),
 		customConverters:  make(map[string]Conversion),
 	}
 
@@ -131,8 +131,8 @@ func (fr *FileReader[T]) Read() (*T, error) {
 	return t, nil
 }
 
-// AddConvertor adds a customer Conversion func to handle a specific CSV header/struct tag.
-func (fr *FileReader[T]) AddConvertor(header string, handler Conversion) error {
+// AddConverter adds a customer Conversion func to handle a specific CSV header/struct tag.
+func (fr *FileReader[T]) AddConverter(header string, handler Conversion) error {
 	if _, ok := fr.headerIndex[header]; !ok {
 		return ErrNotFoundHeaderInCSV
 	}
@@ -141,8 +141,8 @@ func (fr *FileReader[T]) AddConvertor(header string, handler Conversion) error {
 	return nil
 }
 
-// RemoveConvertor removes a customer Conversion func for a specific CSV header/struct tag.
-func (fr *FileReader[T]) RemoveConvertor(header string) error {
+// RemoveConverter removes a customer Conversion func for a specific CSV header/struct tag.
+func (fr *FileReader[T]) RemoveConverter(header string) error {
 	delete(fr.customConverters, header)
 	return nil
 }

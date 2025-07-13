@@ -20,4 +20,7 @@ var (
 
 	// ErrTypeOverflow conversion to the field's type resulted in overflow.
 	ErrTypeOverflow = errors.New("conversion type overlow")
+
+	// ErrToFewStructTags more headers were provided than struct tags available.
+	ErrToFewStructTags = errors.New("to few struct tags")
 )

@@ -20,13 +20,13 @@ type Reader[T any] interface {
 	Read() (*T, error)                                    // Reads a row from the csv and converts it to type *T
 	Close() error                                         // Closes the io.Reader
 	Reset() error                                         // Resets the io.Reader back to the beginning of the file.
-	AddConvertor(header string, handler Conversion) error // AddConvertor registers a custom conversion function for the specified header.
-	RemoveConvertor(header string) error                  // Removes a custom conversion function for the specified header.
+	AddConverter(header string, handler Conversion) error // AddConverter registers a custom conversion function for the specified header.
+	RemoveConverter(header string) error                  // Removes a custom conversion function for the specified header.
 }
 
-// buildDefaultConverts produces a map[reflect.Type]Conversion for each default handled type. Reader implementations can use
+// buildReadDefaultConverters produces a map[reflect.Type]Conversion for each default handled type. Reader implementations can use
 // this map to aid in building default csv string values into Go types.
-func buildDefaultConverts() map[reflect.Type]Conversion {
+func buildReadDefaultConverters() map[reflect.Type]Conversion {
 	converts := make(map[reflect.Type]Conversion)
 	intConversion := Conversion(func(s string, field *reflect.Value) error {
 		if s != "" {
@@ -38,9 +38,10 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 				return errors.New("overflow convert")
 			}
 			field.SetInt(val)
+			return nil
 		}
 
-		return nil
+		return errors.New("cannot convert empty string to int*")
 	})
 	sqlNullInt64Conversion := Conversion(func(a string, field *reflect.Value) error {
 		if a != "" {
@@ -85,8 +86,9 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 				return ErrTypeOverflow
 			}
 			field.SetUint(val)
+			return nil
 		}
-		return nil
+		return errors.New("cannot convert empty string to uint*")
 	})
 	floatConversion := Conversion(func(s string, field *reflect.Value) error {
 		if s != "" {
@@ -98,9 +100,10 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 				return ErrTypeOverflow
 			}
 			field.SetFloat(val)
+			return nil
 		}
 
-		return nil
+		return errors.New("cannot convert empty string to float*")
 	})
 	sqlNullFloat64Conversion := Conversion(func(s string, field *reflect.Value) error {
 		if s != "" {
@@ -127,8 +130,22 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 					return nil
 				}
 			}
+			return errors.New("cannot convert string to time")
 		}
-		return errors.New("cannot convert string to time")
+		return errors.New("cannot convert empty string to time")
+	})
+	boolConversion := Conversion(func(a string, field *reflect.Value) error {
+		if a != "" {
+			cmp := strings.ToLower(a)
+			if cmp == "true" || cmp == "1" || cmp == "on" || cmp == "yes" || cmp == "y" {
+				field.SetBool(true)
+			} else {
+				field.SetBool(false)
+			}
+			return nil
+		}
+
+		return errors.New("cannot convert empty string to bool")
 	})
 	sqlNullTimeConversion := Conversion(func(s string, field *reflect.Value) error {
 		formats := []string{time.DateTime, time.DateOnly, time.RFC3339, time.RFC3339Nano, "01/02/2006 15:04:05 PM", "1/2/2006 15:04:05 PM"}
@@ -152,6 +169,17 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 
 		return nil
 	})
+	sqlNullBoolConversion := Conversion(func(a string, field *reflect.Value) error {
+		if a != "" {
+			cmp := strings.ToLower(a)
+			if cmp == "true" || cmp == "1" || cmp == "on" || cmp == "yes" || cmp == "y" {
+				field.Set(reflect.ValueOf(sql.NullBool{Bool: true, Valid: true}))
+			} else {
+				field.Set(reflect.ValueOf(sql.NullBool{Bool: false, Valid: true}))
+			}
+		}
+		return nil
+	})
 
 	converts[reflect.TypeOf(int64(1))] = intConversion
 	converts[reflect.TypeOf(int32(1))] = intConversion
@@ -171,40 +199,16 @@ func buildDefaultConverts() map[reflect.Type]Conversion {
 	converts[reflect.TypeOf(float64(0))] = floatConversion
 	converts[reflect.TypeOf(float32(0))] = floatConversion
 	converts[reflect.TypeOf(sql.NullFloat64{})] = sqlNullFloat64Conversion
+	converts[reflect.TypeOf(sql.NullBool{})] = sqlNullBoolConversion
+	converts[reflect.TypeOf(true)] = boolConversion
 
 	return converts
-}
-
-// buildReflectTagIndexCache builds a map[string]int of the field tag name and field index so this does not have to
-// be completed on every Read().
-func buildReflectTagIndexCache[T any]() (map[string]int, error) {
-	// Precalculate the struct field indexes
-	rt := new(T)
-	ft := reflect.TypeOf(rt).Elem()
-
-	fieldIndexes := make(map[string]int, ft.NumField())
-
-	for i := range ft.NumField() {
-		csvTag := ft.Field(i).Tag
-		if _, ok := csvTag.Lookup("csv"); ok {
-			tag := csvTag.Get("csv")
-			readTag := strings.Split(tag, ",")
-			if _, tok := fieldIndexes[readTag[0]]; tok {
-				return nil, ErrStructTagDuplicate
-			}
-			if readTag[0] != "" && readTag[0] != "-" {
-				fieldIndexes[readTag[0]] = i
-			}
-		}
-	}
-
-	return fieldIndexes, nil
 }
 
 // buildHeaderNameIndexCache creates two maps representing the csv header and the column number of the header.
 // The first map links column names to their index positions, the second maps indices back to names.
 // It validates that all headers exist in struct tags and checks for duplicate headers.
-func buildHeaderNameIndexCache(headerLine []string, tFieldsIndexes map[string]int) (map[string]int, map[int]string, error) {
+func buildReadHeaderNameIndexCache(headerLine []string, tFieldsIndexes map[string]int) (map[string]int, map[int]string, error) {
 	nameIndex := make(map[string]int, len(tFieldsIndexes))
 	indexName := make(map[int]string, len(tFieldsIndexes))
 
