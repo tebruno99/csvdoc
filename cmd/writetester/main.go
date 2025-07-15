@@ -54,7 +54,7 @@ func main() {
 		examples = append(examples, m)
 	}
 
-	cw, err := csvdoc.NewFileWriter[td.Example]("writedo-limitedcolumns.csv", []string{"Id", "year", "systemId", "userId", "govId", "gender", "birthDate", "Maximum", "Minimum", "MonYear"})
+	cw, err := csvdoc.NewFileWriter[td.Example]("writedo-limitedcolumns.csv", csvdoc.WithFormatHeaders([]string{"Id", "year", "systemId", "userId", "govId", "gender", "birthDate", "Maximum", "Minimum", "MonYear"}), csvdoc.WithWriteHeader(false), csvdoc.WithEscapeRune(';'))
 	if err != nil {
 		log.Fatal(err)
 	}
